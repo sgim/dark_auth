@@ -19,7 +19,7 @@ router.param('id', function (req, res, next, id) {
 router.get('/', function (req, res, next) {
 	// if(!req.user || !req.user.isAdmin) return res.sendStatus(404);
 	User.find({})
-	.select((req.user && req.user.isAdmin) ? "":"name photo phone")
+	.select((req.user && req.user.isAdmin) ? "":"name photo phone email")
 	.then(function (users) {
 		res.json(users);
 	})
@@ -29,8 +29,11 @@ router.get('/', function (req, res, next) {
 router.post('/', function (req, res, next) {
 	User.create(req.body)
 	.then(function (user) {
-		res.status(201).json(user);
+		user.isAdmin = false;
+		return user.save();
+		// res.status(201).json(user);
 	})
+	.then(user => res.status(201).json(user))
 	.then(null, next);
 });
 
@@ -45,6 +48,7 @@ router.get('/:id', function (req, res, next) {
 });
 
 router.put('/:id', function (req, res, next) {
+	if(!req.user || (req.user._id !== req.requestedUser._id) || (!req.user.isAdmin && req.body.isAdmin)) return res.sendStatus(403);
 	_.extend(req.requestedUser, req.body);
 	req.requestedUser.save()
 	.then(function (user) {
@@ -54,9 +58,10 @@ router.put('/:id', function (req, res, next) {
 });
 
 router.delete('/:id', function (req, res, next) {
-	if(!req.user || !req.user.isAdmin) return res.sendStatus(404);
+	if(!req.user || (req.user._id !== req.requestedUser._id && !req.user.isAdmin)) return res.sendStatus(403);
 	req.requestedUser.remove()
 	.then(function () {
+		req.user._id === req.requestedUser._id && req.logout();
 		res.status(204).end();
 	})
 	.then(null, next);
